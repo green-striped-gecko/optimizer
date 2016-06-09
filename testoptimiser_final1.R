@@ -2,13 +2,11 @@ library(PopGenReport )  #load the package
 library(secr)  #to create a random habitat
 library(gdistance)
 library(lme4)
-
-# 9 x 9 pairwise boxplots
-
-
+library(ggplot2)
 library(doParallel)
 
-costmethod <- "leastcost"
+costmethod <- "commute"
+filenameprefix <- "Bernd"
 
 
 
@@ -42,20 +40,24 @@ paras <- read.csv(paste0("sim_",paraspace$method[1],".csv"))
 #paras <- paras[41:81,]
 
 
-#paras <- paras[43:51,]
+#paras <- paras[1:3,]
 
 
 #number of repetitions for optimiser and for nrepop
-nrep = 100
-ncores=8
+nrep = 100  #number of repeats for each sampling regime
+nopiter <- 500  #numbers of iterations in the optimiser 
+ncores=1
+`%op%` <- if(parallel) `%dopar%` else `%do%`
+
+if (ncores ==1) parallel=FALSE else parallel=TRUE
 
 #number of computer cores to be used
 
 #uncomment for parallel
-cl<-makeCluster(ncores)
+if (parallel) cl<-makeCluster(ncores)
 
 
-## define createpop function
+# define createpop function
 createpops <- function(n, mindist, landscape, plot=TRUE, maxiter=1000)
 {  
   
@@ -150,10 +152,12 @@ createsystpops <- function(landscape, plot=TRUE)
 createlandscape <- function(nx =50, ny=50, frict = 20, A, p, plot=FALSE) 
 {
 tempmask<-make.mask(nx=nx,ny=ny,spacing=1)
-roriginal <- raster(randomHabitat(tempmask, p = p, A = A, plt=plot))
+roriginal <- raster(randomHabitat(tempmask, p = p, A = A, plt=FALSE))
 #set non-habitat to friction values of 20
 values(roriginal)[is.na(values(roriginal))==T]<-frict 
 r <- roriginal #to start from an empty landscape, without other populations 
+r[nx*ny] <- frict #make sure lower corner of the landscape is non-habitat because commuteDistance bug
+plot(r)
 return(r)
 }
 
@@ -163,12 +167,19 @@ return(r)
 
 ptm <- proc.time()[3]  #start time
 
-#uncomment for parallel
-registerDoParallel(cl)
-ll <- foreach (i=1:nrow(paras), .combine=rbind, .packages=c("PopGenReport", "secr","lme4","gdistance")) %dopar% {
+if (parallel) registerDoParallel(cl)
+
+
+#comment for unparallel if you want to have a screen output
+#ll <- foreach (i=1:nrow(paras), .combine=rbind, .packages=c("PopGenReport", "secr","lme4","gdistance")) %op% 
+
+#comment for not parallel (ncores =1, and if you want an output on the screen)
+#for (i in 1:nrow(paras))
+		
 	
-#comment for unparallel
-#for (i in 1:nrow(paras)){
+{
+	
+
 
 
 
@@ -381,7 +392,7 @@ for (rep in 1:nrep)
 {
 
   print(paste("Optimizer: ",rep))
-  oo <- opt.landgen(landscape, nlocations = para$n.pops, mindist = paras$mindist[i], method=paras$method[i], NN=paras$NN[i],  mask=mask, iter=500)
+  oo <- opt.landgen(landscape, nlocations = para$n.pops, mindist = paras$mindist[i], method=paras$method[i], NN=paras$NN[i],  mask=mask, iter=nopiter)
 
 para$locs <-oo$scenario[[1]]
 cost.mat <- costdistances(landscape, para$locs, para$method, para$NN) #needed for the simulation
@@ -446,9 +457,9 @@ names(res) <- c(paste("syst_",1:nrep), paste("rand_",1:nrep),paste("opt_", 1:nre
 res[[length(res)+1]] <-  list(A.act=A.act, landscape=landscape)
 
 #change filenames to yours
-save(res, file=paste0("liz2-para",i,".rdata") ) # saves the content of res to the file, first load the file and then call res
+save(res, file=paste0("Bernd-para",i,".rdata") ) # saves the content of res to the file, first load the file and then call res
 
-print(paste0("saved ", paste0("liz-para",i,".rdata"),"."))
+print(paste0("saved ", paste0("Bernd-para",i,".rdata"),"."))
 taken = round((proc.time()[3]-ptm)/60,1)
 print(paste("Finished run ",i,"out of ", nrow(paraspace),".Took: ",taken,"minutes."))
 
@@ -459,7 +470,7 @@ print("....")
 } #end of parameter loop
 
 #uncomment for parallel
-stopCluster(cl)
+if (parallel) stopCluster(cl)
 
 #res is a list of length nreprand + nrepop + 1
 #the first entries are
@@ -513,12 +524,9 @@ for (i in 1:length(files))
 
 simres$type <- as.factor(simres$type)
 
-
-library(ggplot2)
-
 simres$pp <- factor(simres$p)
 levels(simres$pp) <- paste("p =", levels(simres$pp))
-ggplot(simres, aes(x=factor(A), y=pm))+ geom_boxplot(aes(fill=factor(type)))+facet_wrap( ~ pp)+ggtitle("Mantel regression r against p and A")
+ggplot(simres, aes(x=factor(A), y=vanp))+ geom_boxplot(aes(fill=factor(type)))+facet_wrap( ~ pp)+ggtitle("Mantel regression r against p and A")
 
 
 
