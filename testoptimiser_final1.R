@@ -44,7 +44,7 @@ paras <- read.csv(paste0("sim_",paraspace$method[1],".csv"))
 
 
 #number of repetitions for optimiser and for nrepop
-nrep = 100  #number of repeats for each sampling regime
+nrep = 1  #number of repeats for each sampling regime
 nopiter <- 500  #numbers of iterations in the optimiser 
 ncores=1
 `%op%` <- if(parallel) `%dopar%` else `%do%`
@@ -174,7 +174,7 @@ if (parallel) registerDoParallel(cl)
 #ll <- foreach (i=1:nrow(paras), .combine=rbind, .packages=c("PopGenReport", "secr","lme4","gdistance")) %op% 
 
 #comment for not parallel (ncores =1, and if you want an output on the screen)
-#for (i in 1:nrow(paras))
+for (i in 1:nrow(paras))
 		
 	
 {
