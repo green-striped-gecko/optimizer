@@ -40,16 +40,18 @@ paras <- read.csv(paste0("sim_",paraspace$method[1],".csv"))
 #paras <- paras[41:81,]
 
 
-#paras <- paras[1:3,]
+#paras <- paras[41:42,]
 
 
 #number of repetitions for optimiser and for nrepop
-nrep = 100  #number of repeats for each sampling regime
-nopiter <- 500  #numbers of iterations in the optimiser 
+nrep = 2  #number of repeats for each sampling regime
+nopiter <- 1000  #numbers of iterations in the optimiser 
 ncores=1
-`%op%` <- if(parallel) `%dopar%` else `%do%`
 
 if (ncores ==1) parallel=FALSE else parallel=TRUE
+
+`%op%` <- if(parallel) `%dopar%` else `%do%`
+
 
 #number of computer cores to be used
 
@@ -87,7 +89,7 @@ createpops <- function(n, mindist, landscape, plot=TRUE, maxiter=1000)
     
     if (d > mindist) cc <- cc+1  #take the location only if distance is larger than mindist
     
-    if (iter>maxiter) {cat(paste("I did ", iter," iterations"));stop()}
+    if (iter>maxiter) {cat(paste("I did ", iter," iterations"));cc =n+1}
     
   }  #end of location while condition
   
@@ -98,7 +100,7 @@ createpops <- function(n, mindist, landscape, plot=TRUE, maxiter=1000)
     plot(landscape)  
     points(coords, pch=16)
   }
-  return( list(as.matrix( coords), iter))
+  return( if (iter <=maxiter) as.matrix( coords) else NULL)
 }
 
 ## define createsystpops function
@@ -157,7 +159,7 @@ roriginal <- raster(randomHabitat(tempmask, p = p, A = A, plt=FALSE))
 values(roriginal)[is.na(values(roriginal))==T]<-frict 
 r <- roriginal #to start from an empty landscape, without other populations 
 r[nx*ny] <- frict #make sure lower corner of the landscape is non-habitat because commuteDistance bug
-plot(r)
+if (plot) plot(r)
 return(r)
 }
 
@@ -171,10 +173,10 @@ if (parallel) registerDoParallel(cl)
 
 
 #comment for unparallel if you want to have a screen output
-#ll <- foreach (i=1:nrow(paras), .combine=rbind, .packages=c("PopGenReport", "secr","lme4","gdistance")) %op% 
+ll <- foreach (i=1:nrow(paras), .combine=rbind, .packages=c("PopGenReport", "secr","lme4","gdistance")) %op% 
 
 #comment for not parallel (ncores =1, and if you want an output on the screen)
-for (i in 1:nrow(paras))
+#for (i in 1:nrow(paras))
 		
 	
 {
@@ -202,15 +204,9 @@ para$A=paras[i,"A"]
 para$n.cov <- 3 #do not change this!!
 
 
-r<- createlandscape(nx =50, ny=50, frict = 20, A=paras$A[i], p=paras$p[i], plot=TRUE) 
-# init simulation populations from scratch
-landscape<- r 
+landscape<- createlandscape(nx =50, ny=50, frict = 20, A=paras$A[i], p=paras$p[i], plot=TRUE) 
 #create the projection and distances as meters (to avoid warning)
 crs(landscape) <-"+proj=merc +units=m"
-#create res container...
-
-
-#plot(r)
 A.act <- table(values(r))[1]/2500
 
 
@@ -226,16 +222,12 @@ for (rep in 1:nrep)
   # Define x and y locations
   dummy<-data.frame(x=NA, y=NA)
   while (is.na(dummy[1,1]))  {
-  	dummy <-createsystpops(landscape = r, plot = FALSE)
+  	dummy <-createsystpops(landscape = landscape, plot = FALSE)
     if (is.na(dummy[1,1])) {
     	
-    	r<- createlandscape(nx =50, ny=50, frict = 20, A=paras$A[i], p=paras$p[i], plot=TRUE) 
-    	# init simulation populations from scratch
-    	landscape<- r 
-    	#create the projection and distances as meters (to avoid warning)
+    	landscape <- createlandscape(nx =50, ny=50, frict = 20, A=paras$A[i], p=paras$p[i], plot=TRUE) 
     	crs(landscape) <-"+proj=merc +units=m"
-    	#create res container...
-    	
+   
     }
   }
   para$locs<-as.matrix(dummy)
@@ -259,10 +251,11 @@ for (rep in 1:nrep)
   
   
   #run simulator over time
+  system.time(
   simpops <- run.popgensim(simpops, steps=100, cost.mat, n.offspring=para$n.offspring, n.ind=para$n.ind,
                            para$mig.rate, para$disp.max, para$disp.rate, para$n.allels, para$mut.rate,
                            n.cov=para$n.cov, rec="none")
-  
+  )
   
   #convert to genind to calculate pairwise fsts (this )
   gsp <- pops2genind(simpops, para$locs, para$n.cov)
@@ -313,7 +306,11 @@ for (rep in 1:nrep)
 
 print (paste("Random",rep))
 # Define x and y locations
-para$locs <-createpops(n=para$n.pops, mindist = 3, landscape = landscape, plot = FALSE)[[1]]
+para$locs <- NULL
+	while(is.null(para$locs)) para$locs <-createpops(n=para$n.pops, mindist = 3, landscape = landscape, plot = FALSE)
+
+
+
 rownames(para$locs) <- LETTERS[1:para$n.pops]
 
 
@@ -531,10 +528,10 @@ ggplot(simres, aes(x=factor(A), y=vanp))+ geom_boxplot(aes(fill=factor(type)))+f
 
 
 
-matplot(tapply(simres$vanp<0.05, list(simres$p, simres$type), sum)/10, type="b", ylab="MLPE power", xlab="fragmentation p", axes=F, ylim=c(0,1.2), lwd=1.5, pch=16)
-
-axis(2, at=seq(0,1,0.2),labels=seq(0,1,0.2) , las=2)
-axis(1, at=1:9, labels = unique(simres$p))
-box()
-
-legend("bottomright", levels(simres$type), col=1:3, lty=1:3, pch=16)
+# matplot(tapply(simres$vanp<0.05, list(simres$p, simres$type), sum)/10, type="b", ylab="MLPE power", xlab="fragmentation p", axes=F, ylim=c(0,1.2), lwd=1.5, pch=16)
+# 
+# axis(2, at=seq(0,1,0.2),labels=seq(0,1,0.2) , las=2)
+# axis(1, at=1:9, labels = unique(simres$p))
+# box()
+# 
+# legend("bottomright", levels(simres$type), col=1:3, lty=1:3, pch=16)
