@@ -46,7 +46,7 @@ paras <- read.csv(paste0("sim_",paraspace$method[1],".csv"))
 #number of repetitions for optimiser and for nrepop
 nrep = 50  #number of repeats for each sampling regime
 nopiter <- 1000  #numbers of iterations in the optimiser 
-ncores=1
+ncores=8
 
 if (ncores ==1) parallel=FALSE else parallel=TRUE
 
@@ -114,18 +114,19 @@ createsystpops <- function(landscape, plot=TRUE)
   coords <- data.frame(x,y)
   
   habcoords <- data.frame(lxx=NA, lyy=NA)
-  
+  big <- 1    
   for (i in 1:nrow(coords))
   {
     draw<-FALSE
-    if (landscape[cellFromXY(r,coords[i,] )]==1)  draw=TRUE #check if in the habitat
-    
+    if (landscape[cellFromXY(landscape,coords[i,] )]==1)  draw=TRUE #check if in the habitat
+   
     #print(draw)
     if (draw==FALSE) {
       found = FALSE
-      big <- 1
+
       while (found==FALSE & big<8)
       {    
+      
         alt <- cellsFromExtent(landscape, extent(coords[i,1]-big,coords[i,1]+big,coords[i,2]-big,coords[i,2]+big))
         
         
@@ -136,7 +137,7 @@ createsystpops <- function(landscape, plot=TRUE)
           big <- big + 1
         } else {
           found = TRUE
-          habcoords[i, ] <-  xyFromCell(r, alt[ff])
+          habcoords[i, ] <-  xyFromCell(landscape, alt[ff])
         }
         
       }
@@ -154,12 +155,15 @@ createsystpops <- function(landscape, plot=TRUE)
 createlandscape <- function(nx =50, ny=50, frict = 20, A, p, plot=FALSE) 
 {
 tempmask<-make.mask(nx=nx,ny=ny,spacing=1)
-roriginal <- raster(randomHabitat(tempmask, p = p, A = A, plt=FALSE))
-#set non-habitat to friction values of 20
-values(roriginal)[is.na(values(roriginal))==T]<-frict 
-r <- roriginal #to start from an empty landscape, without other populations 
+rh <- randomHabitat(tempmask, p = p, A = A, plt=FALSE)
+rr <- raster(nrows=ny,ncols=nx, xmn=0, xmx=nx, ymn=0, ymx=ny)
+values(rr)<- frict
+hp <- data.frame(rh)
+rr[cellFromXY(rr, hp) ] <- 1
+r <- rr #to start from an empty landscape, without other populations 
 r[nx*ny] <- frict #make sure lower corner of the landscape is non-habitat because commuteDistance bug
 if (plot) plot(r)
+crs(r) <-"+proj=merc +units=m"
 return(r)
 }
 
@@ -206,7 +210,7 @@ para$n.cov <- 3 #do not change this!!
 
 landscape<- createlandscape(nx =50, ny=50, frict = 20, A=paras$A[i], p=paras$p[i], plot=TRUE) 
 #create the projection and distances as meters (to avoid warning)
-crs(landscape) <-"+proj=merc +units=m"
+
 A.act <- table(values(r))[1]/2500
 
 
@@ -226,8 +230,6 @@ for (rep in 1:nrep)
     if (is.na(dummy[1,1])) {
     	
     	landscape <- createlandscape(nx =50, ny=50, frict = 20, A=paras$A[i], p=paras$p[i], plot=TRUE) 
-    	crs(landscape) <-"+proj=merc +units=m"
-   
     }
   }
   para$locs<-as.matrix(dummy)
