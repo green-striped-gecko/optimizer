@@ -211,7 +211,7 @@ para$n.cov <- 3 #do not change this!!
 landscape<- createlandscape(nx =50, ny=50, frict = 20, A=paras$A[i], p=paras$p[i], plot=TRUE) 
 #create the projection and distances as meters (to avoid warning)
 
-A.act <- table(values(r))[1]/2500
+A.act <- table(values(landscape))[1]/2500
 
 
 res <- list()  
