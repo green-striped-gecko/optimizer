@@ -45,7 +45,7 @@ paras <- read.csv(paste0("sim_",paraspace$method[1],".csv"))
 
 #number of repetitions for optimiser and for nrepop
 nrep = 50  #number of repeats for each sampling regime
-nopiter <- 1000  #numbers of iterations in the optimiser 
+nopiter <- 1000  #numbers of iterations in the optimiser. 
 ncores=1
 
 if (ncores ==1) parallel=FALSE else parallel=TRUE
