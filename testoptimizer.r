@@ -5,6 +5,7 @@ library(lme4)
 library(ggplot2)
 library(doParallel)
 
+#this is great
 
 costmethod <- "leastcost"
 filenameprefix <- "Bernd"
@@ -12,7 +13,7 @@ filenameprefix <- "Bernd"
 
 
 #set folder to out put folder
-setwd(paste0("d:/bernd/projects/dgs/code2/",costmethod)) #change to commute if changed
+setwd(paste0("d:/bernd/projects/dgs/code2/",costmethod)) #save depending on costmethod...
 
 
 
@@ -33,7 +34,7 @@ paras <- read.csv(paste0("sim_",paraspace$method[1],".csv"))
 #first haflt
 #paras <- paras[1:40,]
 #second half
-paras <- paras[30:33,]
+#paras <- paras[30:33,]
 
 
 
@@ -552,7 +553,7 @@ ggplot(simres, aes(x=factor(A), y=vanp))+ geom_boxplot(aes(fill=factor(type)))+f
 
 
 
-   ttt <- tapply(simres$pm<0.05, list(simres$A, simres$type), sum  )
+   ttt <- tapply(simres$pm<0.05, list(simres$A, simres$type), sum  )/270
 
 
 
