@@ -1,0 +1,141 @@
+---
+title: "Tutorial Optimizer"
+author: "Bernd Gruber"
+date: "28 July 2016"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(PopGenReport)
+library(hierfstat)
+
+
+
+
+
+```
+
+## load map
+
+First we need to load our map and plot it
+
+```{r loadmap}
+#setwd("d:/bernd/r/optimizer")
+treeScrub <- raster("treeScrub.asc")
+#rescale it a bit as at the moment it is the proportion of treeScrub in a cell (0 .. 1)
+# and 1 means no resistance and zero a lot...
+
+#so no treescrub will get now a resitance of 30, an 100%treeScrub a restistance of zero.
+forest <- 1 + 29-treeScrub*29
+
+plot(forest)
+
+
+```
+
+
+#load genetic data set.
+
+```{r loadpossums}
+
+possums <- read.genetable("possums.csv", ind=1, pop=2, lat=3, long=4,other.min=5, other.max=6, oneColPerAll=TRUE)
+
+
+#restrict to first 9 populations
+possums <- possums[as.numeric(pop(possums))<10,]
+
+
+```
+
+
+
+and here is the rest of the code, which needs to be converted into a tutorial....
+But feel free to add any other content/steps where you think important bits are missing...
+
+```{r code}
+
+
+
+#transform to nz coordinate system....
+
+pt <- possums@other$latlong
+coordinates(pt) <-  ~long + lat
+proj4string(pt) <-"+proj=longlat +datum=WGS84 +ellps=WGS84"
+
+ nzp4 <-  "+proj=tmerc +lat_0=0 +lon_0=173 +k=0.9996 +x_0=1600000 +y_0=10000000 +ellps=GRS80 +units=m +no_defs"
+
+ 
+ptnz <-spTransform(pt, CRS(nzp4) )
+
+possums@other$xy <- coordinates(ptnz)
+
+
+plot(forest)
+
+points(possums@other$xy)
+
+#find the median center of all individuals (as we do our example on the subpopulation level)
+
+xys <- cbind(tapply(possums@other$xy[,1], pop(possums), median), tapply(possums@other$xy[,2], pop(possums), median))
+
+points(xys, col="orange", pch=16)
+
+#costdistances....
+cd <- as.dist(costdistances(landscape = forest, locs = xys, method = "leastcost", NN=8))
+
+ed <- dist(xys)
+
+
+detours <- resid(lm(cd ~ ed))
+sddetours <- sd(detours)
+
+#library(hierfstat)
+gd <- pairwise.fst(possums)
+
+#run a mantel test
+ pm <- wassermann(gen.mat=as.matrix(gd), cost.mats=list(cd = as.matrix(cd)), eucl.mat = as.matrix(ed))
+
+
+ cor(cbind(gd, cd, ed))
+
+#so there is a significant relationship between ed and gd, but not between 
+# and unfortunately this could be the case because cd and ed are quite highly correlated (0.58)
+
+#lets see how good the choice of locations was...
+#define the mask (no points in water and outside of 20% treescrub cover 
+mask <- forest
+mask[values(treeScrub<0.2)] <- NA
+
+#this runs about 1-2 minutes [ (we set iter = 5 to make it faster), change it to 100  or so ~ 30 minutes to have a better comparison...
+
+op <- opt.landgen(landscape = forest, nlocations = 9, mindist=5000, method="leastcost", NN=8, iter=5, mask=mask)
+
+
+#now check how 'good' your choice was compared to simulted scenarios...
+
+ plot(ecdf(op$opt$sd.detour), main="Cummulative Density of sd.detour", xlab="cummulative frequency of sd(detours)", xlim=range(op$opt$sd.detour, sddetours))
+  abline(v=sddetours ,col="red")
+  legend("topleft", legend="your scenario", lwd=1, pch="|", col="red")
+
+#compare the scenarios on the map...
+
+plot(treeScrub)
+points(xys, col="red", pch=16)
+#best scenario
+points(op$scenario[[1]] , col="blue", pch=16)
+
+
+
+
+
+```
+
+##Summary
+
+looks like the design is quite good, but there are better ones. It is likely that with a better design you could have shown the effect of forest.... (which we actually did using the full data set = 31 populations....)
+
+
+
+
