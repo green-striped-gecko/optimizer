@@ -134,7 +134,7 @@ points(op$scenario[[1]] , col="blue", pch=16)
 
 ##Summary
 
-looks like the design is quite good, but there are better ones. It is likely that with a better design you could have shown the effect of forest.... (which we actually did using the full data set = 31 populations....)
+looks like the design is quite good, but there are better ones. It is likely that with a better design you could have shown the effect of tree scrub cover.... (which we actually did using the full data set = 31 populations....)
 
 
 
