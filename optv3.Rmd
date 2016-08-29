@@ -16,14 +16,28 @@ In part I of this tutorial, we demonstrate how to use the opt.landgen function t
 
 ## Set up
 
-To use the opt.landgen function, you will need to install the PopGenReport package. For complete instructions on how to install and use PopGenReport, please refer to the PopGenReport tutorial available at: <https://cran.r-project.org/web/packages/PopGenReport/vignettes/PopGenReportIntroduction.pdf>
+To use the opt.landgen function, you will need to install the PopGenReport package. For complete instructions on how to install and use PopGenReport, please refer to the PopGenReport tutorial available at: <https://cran.r-project.org/web/packages/PopGenReport/vignettes/PopGenReportIntroduction.pdf> or to <http://www.popgenreport.org>
 
 Load necessary packages
 
-```{r packages}
+```{r setknitr, echo=FALSE}
+knitr::opts_chunk$set(tidy = TRUE)
+```
+
+
+
+```{r packages, warning=FALSE, message=FALSE, echo=F}
 library(PopGenReport)
-library(raster)
+#library(raster)
 library(hierfstat)
+
+```
+
+
+```{r packshow, eval=FALSE}
+library(PopGenReport)
+library(hierfstat)
+#library(raster)
 ```
 
 
@@ -31,7 +45,7 @@ library(hierfstat)
 
 ### Load the resistance surface
 
-First we need to load our map and plot it. You can use already created cost surface or create a cost surface from any raster file. 
+First we need to load our map and plot it. You can use already created cost surface or create a cost surface from any raster file. The ```raster``` function from the raster package allows to virtually load any type of raster file (including georeferenced tiff files, ascii files, ESRI raseter)
 
 types of files that can be used???
 
@@ -44,15 +58,15 @@ Here we load a layer of the proportion of treescrub in the [describe dataset?] s
 treeScrub <- raster("treeScrub.asc")
 
 # the current raster shows the proportion of each cell that is treescrub
-# rescale it so that cells with 100 treescrub will have a resistance of 0 and cells with no treescrub have a resistance of 10
-# because of the costs of moving, an additional cost of 1 is added to each cell????
+# rescale it so that cells with 100% treescrub will have a resistance of 1 and cells with no treescrub have a a resistance of 30
+# because of the costs of moving, an cost of 1 (which basically is the equivalent to isoloation by euclidean distance)
 forest <- 1 + 29-treeScrub*29
-
-# rescale the waterbodies (previously NA) 
-# previously not an issue because Bernd was using a mask. can we change treescrub.asc to simplify this example? 
+plot(forest)
+# rescale the waterbodies (from NA to 1000) 
+#removing of NAs as no mask is used.
 forest[is.na(forest[])] <- 1000
 
-plot(forest)
+
 
 ```
 
@@ -61,40 +75,28 @@ plot(forest)
 
 In addition to the resistance surface, the optimizer requires two pieces of information.
 
-1. nlocations: the number of sampling locations to be optimized
-2. method: the method of calculating the cost distance based on the gdistance package costdistance function.
-..* leastcost:
-..* commute:
-..* SPDistance:
+* **nlocations**: the number of sampling locations to be optimized
+* **method**: the method of calculating the cost distance based on the gdistance package costdistance function. There are currently three types of cost distances implemented: "leastcost", "commute", "SPDistance".
 
+The following arguments have default values that can be changed to better suit your sampling scheme.
 
-
-The following arguements have default values that can be changed to better suit your sampling scheme.
-
-1. mindist: the minimum distance between sampling locations. Map units can be specified (default = 0 meters)
-2. NN: the number of next nearest neighbor cells to be used. See function costdistance (default = 8)
-3. inter: the number of iterations that should be used to find an optimised design (default = 100)
-4. retry: the number of retries if optimisation is not possible in a certain iteration due to the mindist and/or fixed locations (default = 10)
-
-
-
+* **mindist**: the minimum distance between sampling locations in map units (default = 0)
+* **NN**: the number of next nearest neighbor cells to be used. See function costdistance (default = 8)
+* **iter**: the number of iterations that should be used to find an optimised design (default = 100), but it is advisable to set the number to higher values so the optimizer is able to find a near to optimal design. Due to the potentially prohibitiv possible sampling design it is quite unlikely to find the optimal design if the sampling space is not severely restricted (e.g. by maks or mindist)
+* **retry**: the number of retries if optimisation is not possible in a certain iteration due to mindist and/or fixed locations (default = 10). An output is created to make the user aware if the algorithm has difficulties to find suitable sampling designs.
+    
 Additional information can be added if some sampling locations are predetermined or not all areas of the cost surface are available for sampling.
 
-1. fixed: a data.frame of n fixed sampling locations with dimensions n x 2
-2. mask: a raster object that masks positions which are not available. Areas which are not to be used for locations are coded as NA (not available), all other values are treated as suitable for placing locations
-
-
-
-Finally, set Plot = TRUE to produce the output of function
-
-
+* **fixed**: a data.frame of n fixed sampling locations with dimensions n x 2
+* **mask**: a raster object that masks positions which are not available. Areas which are not to be used for locations are coded as NA (not available), all other values are treated as suitable for placing locations
+* **plot** if TRUE a graphical output is produced (description see below)
 
 In this example we optimize 9 sampling locations on the forest cost surface using the least cost method. 
 
 ```{r opt function}
-#set the seed of the number generator
+#set the seed of the number generator to achieve the same output.
 set.seed(123) 
-op <- opt.landgen(landscape = forest, nlocations = 9, mindist = 5000, method = "leastcost", NN = 8, iter = 2)
+op <- opt.landgen(landscape = forest, nlocations = 9, mindist = 5000, method = "leastcost", NN = 8, iter = 5)
 
 ```
 
@@ -107,26 +109,20 @@ In order to expedite the function, we set iter = 5, which will run for 1-2 minut
 op
 ```
 
-The opt.landgen function produces a data.frame containing the standard deviation of the least cost values (sd.cost) and the standard deviation of the detours (sd.detour) for each iteration as well as the location coordinates for the sampling locations.
+The opt.landgen function produces a data.frame containing the standard deviation of the least cost values (sd.cost) and the standard deviation of the detours (sd.detour) for each iteration as well as the location coordinates of the sampling locations.
 
 If plot = TRUE it will also produce four plots
-1. Distribution of detour
-..*the flatter the better... [neeed mre] 
-2. Cummulative density of sd.detour
-..* Shows the proportin of iterations with lower standard deviations
-3. Best
-..* The coordinates of the iteration with the highest sd.detour plotted on the cost surface
-4. Worst
-..* The coordinates of the iteration with the lowest sd.detour plotted on the cost surface
 
-Because we are only going through a small number of iterations in this example, it is unlikely that we have found the optimal sampling locations or that your locations will match ours exactly. [more?]
+* Distribution of detour: a desirable distribution is U-shaped, which is hard to achieve. More likely a wide, platykurtic normal distribution is the best that can be achieved. 
+* Cummulative density of sd.detour: Shows the proportion of iterations with lower standard deviations
+* Best: the coordinates of the iteration with the highest sd.detour plotted on the cost surface
+* Worst: the coordinates of the iteration with the lowest sd.detour plotted on the cost surface
 
+Because we are only going through a small number of iterations (iter=5) to save runtime in this example, it is unlikely that we have found the optimal or even a good sampling design.
 
-### Use a mask
+### Use a mask to exclude certain areas from sampling
 
-move this up to the original to take care of the water??
-
-Suppose areas with little treescrub are known to have a high prevelence of venemous blah blah blah and sampling in these locations would be too dangerous. We can create a mask so that the optimizer will not include them as potential sample locations.
+Suppose areas with little treescrub are known to not be inhabitat by the species or some areas are not accessible and therefore sampling in these locations is not possible. We can create a mask so that the optimizer will not include these areas as sample locations.
 
 
 ```{r define mask}
@@ -136,30 +132,31 @@ mask <- treeScrub
 mask[values(treeScrub<0.10)] <- NA
 
 # run the optimizer 
-opmask <- opt.landgen(landscape = forest, nlocations = 9, mindist=5000, method="leastcost", NN=8, iter=2, mask=mask)
+opmask <- opt.landgen(landscape = forest, nlocations = 9, mindist=5000, method="leastcost", NN=8, iter=5, mask=mask)
 ```
 
 
 ## Part II: Using opt.landgen to test the power of your sampling design post-hoc
 
-opt.landgen can also be used to compare your sampling design to an optimized version post-hoc. For this example, we compare the sampling of 9 populations of possums in [area the layer is from?] to the optimized version. 
+opt.landgen can also be used to compare your sampling design to an optimized version post-hoc. For this example, we compare the sampling design of an actual sample of 9 populations of possums in New Zealand to the optimized version.
+The data set is publicly available and the accompanied publication can be found under: [Sarre, S. D., Aitken, N., Adamack, A. T., MacDonald, A. J., Gruber, B. and Cowan, P. (2014), Creating new evolutionary pathways through bioinvasion: the population genetics of brushtail possums in New Zealand. Mol Ecol, 23: 3419–3433.](http://dx.doi.org/10.1111/mec.12834)For demonstration purposes we will use only a subset of the data set.
 
 
 ### Load the sampled location data
 
-Sampling locations should be loaded as a genind object.
+Sampling locations are loaded and converted into a genind object. The genind object is a very convenient data format for genetic data sets in R, but you can use any other format. You simply need to be able to provide coordinates for every sample.
 
 ```{r loadpossums}
 
-# see function read.genetable in PopGenReport for an explanation r should we explain here???
+# see ?read.genetable in PopGenReport for an explanation (creates a genind object for a tabular genetic data set)
 possums <- read.genetable("possums.csv", ind=1, pop=2, lat=3, long=4,other.min=5, other.max=6, oneColPerAll=TRUE)
 
-# the original dataset includes [#?] populations but to expedite the computational time we are restricting the dataset to the first 9 populations sampled
+# the original dataset includes [31] populations but to expedite the computational time we are restricting the dataset to the first 9 populations sampled
 possums <- possums[as.numeric(pop(possums))<10,]
 
 ```
 
-The longitude and latitude in possums is currently in [??? format]. Before plotting these locations on the forest layer, they must first be transformed to the New Zealand coordinate system.
+The longitude and latitude in possums is currently given in lat-lon (WGS84). Before plotting these locations on the forest layer, they must first be transformed to the New Zealand coordinate system [New Zealand Transverse Mercator 2000 (NZTM2000)], which is the coordinate system of your forest resistance layer.
 
 ```{r code}
 
@@ -182,7 +179,7 @@ points(possums@other$xy)
 
 ```
 
-The sampling data is at an individual level but we are optimizing the surface for 9 populations. We can find the median center of the individuals to compare to the optimized population locations.
+The sampling data is at an individual level but we are optimizing the surface for 9 populations. We can find the median center of the individuals to compare to the optimized population locations. It is obviously possible to use individuals and their coordinates instead of median centers for you sampling design, but here we use a subpopulation based design. So the intention was to sample several individuals at 9 spatially focused locations and use subpopulation based genetic distances such as Fst or Gst to study the effect of landscape structure on gene flow.
 
 ```{r median center}
 
@@ -197,7 +194,7 @@ points(xys, col="orange", pch=16)
 
 ```
 
-### Compare the sampled locations the the optimized locations
+### Compare the sampled locations to the optimized locations
 
 If we calculate the standard deviation of detours in the sampled locations, we can compare the amount of deviation to the cumulative distrobution of sd.detour calculated by the optimizer (plot 2 from the optimizer output).
 
@@ -237,17 +234,17 @@ points(op$scenario[[1]] , col="blue", pch=16)
 
 ```
 
-As you can see the sd.detour of the sampled locations is [??] compared to the cumulative distrobution....
+As you can see the sd.detour of the sampled locations is fairly narrow and if run long enough (iter>100) a much better sampling design could be found.
 
 
 ## genetic something or other
 Because we have genetics data from the sampled possums, we can see how a different sampling scheme could improve our ability to find the affect of the landscape
 
-To do so we will be using the hierfstat package to calculate ...
+To do so we will be using the hierfstat package to calculate pairwise Fst values between the 9 subpopulations.
 
 ```{r genetics}
 
-# calculate the pairwise fst between possum [populations or ind?] 
+# calculate the pairwise Gst between possum [populations or ind?] 
 gd <- pairwise.fst(possums)
 
 # run a mantel test to test for the effect of the landscape (cd) on the genetic differences (gd) when the euclidian distance is controlled for (ed)
@@ -256,29 +253,28 @@ pm <- wassermann(gen.mat=as.matrix(gd), cost.mats=list(cd = as.matrix(cd)), eucl
 pm
 ```
 
-remove gd plots?
-
 From the mantel test we can see that we are unable to show an effect of the density of scrubtree on the genetic distance between populations when euclidian distance is accounted for.
 
-something explaining why we are including the correlation...
+As a simple test we study the correlations between genetic, cost and Euclidean distances. If the correlation between cost and Euclidean distance is quite high, it will be difficult to find an effect of forests on gene flow as the Euclidean distance does already explain most of the genetic variation between subpopulations.
+
 
 ```{r correlation}
 # calculate the correlation between the genetic, cost, and euclidian distances between populations
 cor(cbind(gd, cd, ed))
 ```
 
-There is a significant relationship between the euclidian distance and genetic distance but no correlation between the cost distance and the genetic distance. This could be the case because the cost and euclidian distances quite highly correlated (0.58).
+There is a significant relationship between the Euclidian distance and genetic distance but no correlation between the cost distance and the genetic distance. This could be the case because the cost and euclidian distances quite highly correlated (0.58).
 
-While we were unable to find a significant affect of the landscape on the genetic distances between the nine sampled populations, from our post-hoc comparisons we can see that our sampling scheme was not ideal. If we have additional funds and time to continue sampling, we can incorporate our sampled possums as fixed populations and reoptimize the landscape for more sampling locations.
+While we were unable to find a significant effect of the landscape on the genetic distances between the nine sampled populations, from our post-hoc comparisons we can see that our sampling scheme was not ideal. If we would have additional funds and time to continue sampling, we could incorporate our already sampled possums as fixed populations and reoptimize the sampling design for more sampling locations.
 
 
 ```{r fix pops}
 fixed <- xys
-opfix <- opt.landgen(landscape = forest, nlocations = 15, mindist = 5000, method = "leastcost", NN = 8, iter = 2, mask = mask, fixed = fixed)
+opfix <- opt.landgen(landscape = forest, nlocations = 15, mindist = 5000, method = "leastcost", NN = 8, iter = 5, mask = mask, fixed = fixed)
 ```
 
 
-By incorporating the additional 6 sampling locations into our analysis we could shown the effect of forest.... (which we actually did using the full data set = 31 populations....)...
+By incorporating the additional 6 sampling locations into our analysis we could show the effect of forest on dispersal distances, something we could actually demonstrate using the full data set with 31 populations.
 
 
 
